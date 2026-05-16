@@ -1,0 +1,9 @@
+The web is built on HTTP, and there's no 
+better way to understand how something works
+ than to implement it yourself. In this
+  course, we'll learn the nitty-gritty
+   details of the HTTP/1.1 protocol, and
+    as we do so we'll actually build our 
+    own HTTP server from scratch in Golang.
+     By the end, you'll have a deep
+      understanding of how web transport works.
