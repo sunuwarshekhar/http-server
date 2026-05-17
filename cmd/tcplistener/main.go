@@ -8,14 +8,13 @@ import (
 	"main.go/internal/request"
 )
 
-
 func main() {
-	listener , err := net.Listen("tcp", ":42069")
+	listener, err := net.Listen("tcp", ":42069")
 	if err != nil {
-		log.Fatal("error","error", err)
+		log.Fatal("error", "error", err)
 	}
 	for {
-		conn , err := listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			log.Fatal("error", "error", err)
 		}
@@ -28,10 +27,11 @@ func main() {
 		fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
 		fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
 		fmt.Printf("Headers:\n")
-		r.Headers.ForEach(func(n, v string){
-			fmt.Printf("- %s: %s\n",n, v)
+		r.Headers.ForEach(func(n, v string) {
+			fmt.Printf("- %s: %s\n", n, v)
 		})
+		fmt.Printf("Body:\n")
+		fmt.Printf("%s\n", r.Body)
 	}
-	
 
 }

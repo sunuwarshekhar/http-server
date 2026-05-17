@@ -7,18 +7,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
-
 func TestHeaderParse(t *testing.T) {
-	//test: valid single header
+	//test: valid spacing header
 	headers := NewHeaders()
 	data := []byte("Host: localhost:42069\r\nFooFoo:     barbar   \r\n\r\n")
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers.Get("Host"))
-	assert.Equal(t, "barbar", headers.Get("FooFoo"))
-	assert.Equal(t, "", headers.Get("MissingKey"))
+	host, ok := headers.Get("HOST")
+	assert.True(t, ok)
+	assert.Equal(t, "localhost:42069", host)
+	foofoo, ok := headers.Get("FooFoo")
+	assert.True(t, ok)
+	assert.Equal(t, "barbar", foofoo)
+
+	_, ok = headers.Get("missingKey")
+	assert.False(t, ok)
 	assert.Equal(t, 48, n)
 	assert.True(t, done)
 
@@ -47,7 +51,9 @@ func TestHeaderParse(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069,localhost:42069", headers.Get("HOST"))
+
+	host, ok = headers.Get("HOST")
+	assert.Equal(t, "localhost:42069,localhost:42069", host)
 	assert.False(t, done)
 
 }

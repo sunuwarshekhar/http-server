@@ -4,46 +4,69 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 
 	"main.go/headers"
 )
+
+type parserState string
 
 type RequestLine struct {
 	HttpVersion   string
 	RequestTarget string
 	Method        string
+	Body          string
+}
+
+type Request struct {
+	RequestLine RequestLine
+	Headers     *headers.Headers
+	Body        string
+	state       parserState
 }
 
 func (r *RequestLine) ValidHttp() bool {
 	return r.HttpVersion == "1.1"
 }
 
-type parserState string
-
-type Request struct {
-	RequestLine RequestLine
-	Headers *headers.Headers
-	state       parserState
-
+func getInt(headers *headers.Headers, name string, defaultValue int) int {
+	valueStr, exists := headers.Get(name)
+	if !exists {
+		return defaultValue
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	return value
 }
 
 func newRequest() *Request {
 	return &Request{
-		state: StateInit,
+		state:   StateInit,
 		Headers: headers.NewHeaders(),
+		Body:    "",
 	}
+}
+
+func (r *Request) hasBody() bool {
+	//to wo when chunked
+	length := getInt(r.Headers, "content-Length", 0)
+	return length > 0
 }
 
 var ERROR_BAD_START_LINE = fmt.Errorf("bad start line")
 var ERROR_NOT_SUPPORTED_HTTP_VERSION = fmt.Errorf("bad request-line")
 var ErrorRequestInErrorState = fmt.Errorf("request in error state")
+var ERROR_INCOMPLETE_BODY = fmt.Errorf("incomplete body")
 var SEPARATOR = []byte("\r\n")
 
 const (
-	StateInit  parserState = "init"
+	StateInit    parserState = "init"
 	StateHeaders parserState = "headers"
-	StateDone  parserState = "done"
-	StateError parserState = "error"
+	StateBody    parserState = "body"
+	StateDone    parserState = "done"
+	StateError   parserState = "error"
 )
 
 func parseRequestLine(b []byte) (*RequestLine, int, error) {
@@ -79,6 +102,10 @@ func (r *Request) parse(data []byte) (int, error) {
 outer:
 	for {
 		currentData := data[read:]
+		if len(currentData) == 0 {
+			break outer
+		}
+
 		switch r.state {
 		case StateError:
 			return 0, ErrorRequestInErrorState
@@ -93,10 +120,11 @@ outer:
 			r.RequestLine = *rl
 			read += n
 			r.state = StateHeaders
-			
+
 		case StateHeaders:
-			n, done , err := r.Headers.Parse(currentData)
+			n, done, err := r.Headers.Parse(currentData)
 			if err != nil {
+				r.state = StateError
 				return 0, err
 			}
 			if n == 0 {
@@ -104,6 +132,23 @@ outer:
 			}
 			read += n
 			if done {
+				if r.hasBody() {
+					r.state = StateBody
+				} else {
+					r.state = StateDone
+				}
+			}
+		case StateBody:
+			length := getInt(r.Headers, "content-Length", 0)
+
+			if length == 0 {
+				panic("chunk not implemented")
+			}
+			remaining := min(length-len(r.Body), len(currentData))
+			r.Body += string(currentData[:remaining])
+			read += remaining
+
+			if len(r.Body) == length {
 				r.state = StateDone
 			}
 		case StateDone:
@@ -141,6 +186,12 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 		copy(buf, buf[readN:bufLen])
 		bufLen -= readN
+	}
+	if !request.done() {
+		if request.state == StateBody {
+			return nil, ERROR_INCOMPLETE_BODY
+		}
+		return nil, fmt.Errorf("incomplete request")
 	}
 	return request, nil
 }
